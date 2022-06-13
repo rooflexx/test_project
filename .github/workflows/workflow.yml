@@ -1,0 +1,122 @@
+name: test_project
+
+on:
+  push:
+  pull_request:
+    branches: [ main, staging ]
+  workflow_dispatch:
+
+jobs:
+  build-lint-test:
+    runs-on: cardo-runner
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.9"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+
+          if [ -f test_project/requirements/local.txt ]; then pip install -r test_project/requirements/local.txt; fi
+
+      - name: Lint with black and isort
+        run: |
+          make lint
+      - name: Test with pytest
+        run: |
+          make test
+#
+#
+#  deploy:
+#    needs: [ build-lint-test ]
+#    name: Deploy
+#    runs-on: ubuntu-latest
+#
+#    env:
+#      AWS_REGION: eu-central-1
+#      EKS_CLUSTER_NAME: eks-cluster
+#
+#    if: ${{ github.event_name == 'push' &&
+#      contains('
+#      refs/heads/staging
+#      refs/heads/main
+#      ', github.ref)}}
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v1
+#
+#      - name: Configure AWS credentials
+#        uses: aws-actions/configure-aws-credentials@v1
+#        with:
+#          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#          aws-region: ${{ env.AWS_REGION }}
+#      - name: Login to Amazon ECR
+#        id: login-ecr
+#        uses: aws-actions/amazon-ecr-login@v1
+#
+#      - name: Build, tag, and push image to Amazon ECR
+#        id: build-image
+#        env:
+#          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+#
+#          ECR_REPOSITORY: test_project
+#
+#        run: |
+#          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:${GITHUB_REF#refs/heads/}-$GITHUB_SHA -f ./deployment/Dockerfile .
+#          docker push $ECR_REGISTRY/$ECR_REPOSITORY:${GITHUB_REF#refs/heads/}-$GITHUB_SHA
+#          echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:${GITHUB_REF#refs/heads/}-$GITHUB_SHA"
+#
+#      - name: Checkout manifest repo
+#        uses: actions/checkout@v2
+#        with:
+#
+#          repository: cardoai/gitops
+#
+#          token: ${{ secrets.GH_PAT }}
+#          ref: main
+#
+#      - name: Update the prod manifest
+#        if: ${{ github.event_name == 'push' &&
+#          contains('
+#          refs/heads/main
+#          ', github.ref)}}
+#        env:
+#
+#          K8S_YAML_DIR: ./apps/test_project
+#
+#          IMAGE_NAME: ${{ steps.build-image.outputs.image }}
+#        run: |
+#          cd $K8S_YAML_DIR/overlays/prod
+#          curl -s -o kustomize --location https://github.com/kubernetes-sigs/kustomize/releases/download/v3.1.0/kustomize_3.1.0_linux_amd64
+#          chmod u+x ./kustomize
+#          ./kustomize edit set image example-image=$IMAGE_NAME
+#          ./kustomize build .
+#      - name: Update the dev manifest
+#        if: ${{ github.event_name == 'push' &&
+#          contains('
+#          refs/heads/staging
+#          ', github.ref)}}
+#        env:
+#
+#          K8S_YAML_DIR: ./apps/test_project
+#
+#          IMAGE_NAME: ${{ steps.build-image.outputs.image }}
+#        run: |
+#          ls -la
+#          cd $K8S_YAML_DIR/overlays/staging
+#          curl -s -o kustomize --location https://github.com/kubernetes-sigs/kustomize/releases/download/v3.1.0/kustomize_3.1.0_linux_amd64
+#          chmod u+x ./kustomize
+#          ./kustomize edit set image example-image=$IMAGE_NAME
+#          ./kustomize build .
+#
+#      - name: Push the changes to git
+#        run: |
+#          git config user.name github-actions
+#          git config user.email github-actions@github.com
+#          git add .
+#          git commit -m "Update image version"
+#          git push
+
